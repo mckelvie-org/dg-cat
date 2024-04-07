@@ -1216,7 +1216,7 @@ int main(int argc, char* argv[]) {
     std::cerr << "Bound to " << matching_entry.addr_string() << ":" << port << "\n";
 
     {
-        FileCloser file(open(output_file.c_str(), O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC));
+        FileCloser file(open(output_file.c_str(), O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0660));
         if (file.fd < 0) {
             throw std::system_error(errno, std::system_category(), "open() failed");
         }

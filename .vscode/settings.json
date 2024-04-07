@@ -1,4 +1,9 @@
 {
+  "cmake.buildDirectory": 
+    "${workspaceFolder}/build/${buildKitTargetOs}-${buildKitVendor}-${buildKitTargetArch}-${buildType}",
+  "cmake.debugConfig": {
+    "args": [ "9876", "output.bin"],
+  },
   "C_Cpp_Runner.cCompilerPath": "gcc",
   "C_Cpp_Runner.cppCompilerPath": "g++",
   "C_Cpp_Runner.debuggerPath": "gdb",
