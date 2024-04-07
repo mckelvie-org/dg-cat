@@ -92,10 +92,11 @@ if(NOT SUBPROJECT)
     COMPATIBILITY SameMajorVersion
   )
 
-  install(
-    FILES
-      cmake/UdpCaptureConfig.cmake
-      ${CMAKE_CURRENT_BINARY_DIR}/UdpCaptureConfigVersion.cmake
-    DESTINATION lib/cmake/UdpCapture
-  )
+  #install(
+  #  FILES
+  #    cmake/UdpCaptureConfig.cmake
+  #    ${CMAKE_CURRENT_BINARY_DIR}/UdpCaptureConfigVersion.cmake
+  #  DESTINATION lib/cmake/UdpCapture
+  #)
+  
 endif()
