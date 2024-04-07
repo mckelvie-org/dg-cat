@@ -27,6 +27,9 @@ if(NOT SUBPROJECT AND BUILD_TESTING)
 endif()
 
 find_package(argparse REQUIRED)
+set(Boost_USE_MULTITHREADED ON)  
+#set(Boost_USE_STATIC_RUNTIME OFF)
+#find_package(Boost 1.74.0 REQUIRED COMPONENTS endian)
 
 add_library(udp_capture src/udp_capture.cpp)
 target_sources(
@@ -98,5 +101,5 @@ if(NOT SUBPROJECT)
   #    ${CMAKE_CURRENT_BINARY_DIR}/UdpCaptureConfigVersion.cmake
   #  DESTINATION lib/cmake/UdpCapture
   #)
-  
+
 endif()
