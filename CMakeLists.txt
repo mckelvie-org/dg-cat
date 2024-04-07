@@ -29,7 +29,7 @@ endif()
 find_package(argparse REQUIRED)
 set(Boost_USE_MULTITHREADED ON)  
 #set(Boost_USE_STATIC_RUNTIME OFF)
-#find_package(Boost 1.84.0 REQUIRED COMPONENTS endian)
+find_package(Boost 1.84.0 REQUIRED COMPONENTS)
 
 add_library(udp_capture src/udp_capture.cpp)
 target_sources(
