@@ -1,0 +1,73 @@
+name: Release
+on:
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+"
+jobs:
+  build-project:
+    name: Build Project
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        variant:
+          - suffix: linux-x86_64
+            arch: x64
+          - suffix: linux-aarch64
+            arch: arm64
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4.1.2
+
+      - name: Install boost
+        uses: MarkusJx/install-boost@v2.4.5
+        id: install-boost
+        with:
+            # REQUIRED: Specify the required boost version
+            # A list of supported versions can be found here:
+            # https://github.com/MarkusJx/prebuilt-boost/blob/main/versions-manifest.json
+            boost_version: 1.84.0
+            # OPTIONAL: Specify a platform version
+            platform_version: 22.04
+            # OPTIONAL: Specify a custom install location
+            boost_install_dir: /home/runner/.local
+            # OPTIONAL: Specify a toolset
+            toolset: gcc
+            # OPTIONAL: Specify an architecture
+            arch: ${{ matrix.variant.arch }}
+              
+      - name: Configure Project
+        uses: threeal/cmake-action@v1.3.0
+        env:
+            BOOST_ROOT: ${{ steps.install-boost.outputs.BOOST_ROOT }}
+            
+      - name: Build Project
+        run: cmake --build build --config Release
+
+      - name: Install Project
+        run: cmake --install build --prefix install
+
+      - id: version
+        name: Get version
+        uses: jannemattila/get-version-from-tag@v3
+  
+      - name: create_release
+        uses: actions/create-release@v1
+        id: create_release
+        with:
+          draft: false
+          prerelease: false
+          release_name: ${{ steps.version.outputs.version }}
+          tag_name: ${{ github.ref }}
+          body_path: CHANGELOG.md
+        env:
+          GITHUB_TOKEN: ${{ github.token }}        
+      - name: upload release artifact
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./bin/azblogfilter.linux-amd64.tar.gz
+          asset_name: azblogfilter.linux-amd64.tar.gz
+          asset_content_type: application/gzip

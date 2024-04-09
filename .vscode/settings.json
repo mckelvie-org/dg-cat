@@ -141,6 +141,11 @@
     "typeindex": "cpp",
     "typeinfo": "cpp",
     "variant": "cpp",
-    "ios": "cpp"
+    "ios": "cpp",
+    "charconv": "cpp",
+    "unordered_set": "cpp",
+    "slist": "cpp",
+    "shared_mutex": "cpp",
+    "valarray": "cpp"
   }
 }
