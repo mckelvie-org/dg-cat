@@ -4,26 +4,11 @@
 #include <sys/socket.h>
 #include <netdb.h>
 #include <errno.h>
-
-// #include <fstream>
-// #include <iostream>
 #include <vector>
-// #include <array>
-// #include <thread>
-// #include <mutex>
-// #include <condition_variable>
-// #include <exception>
-// #include <time.h>
-// #include <csignal>
 #include <memory>
 #include <system_error>
-// #include <chrono>
-// #include <sys/uio.h>
-// #include <sys/stat.h>
-// #include <fcntl.h>
 #include <cassert>
 #include <stdexcept>
-// #include <cmath>
 
 class AddrInfoResultRef {
     /**

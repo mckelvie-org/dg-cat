@@ -8,30 +8,6 @@
 #include "datagram_copier_stats.hpp"
 #include "file_closer.hpp"
 
-// #include <sys/types.h>
-// #include <sys/socket.h>
-// #include <netdb.h>
-
-// //#include <boost/asio.hpp>
-// #include <boost/endian/conversion.hpp>
-// #include <fstream>
-// #include <iostream>
-// #include <vector>
-// #include <array>
-// #include <thread>
-// #include <mutex>
-// #include <condition_variable>
-// #include <exception>
-// #include <time.h>
-// #include <csignal>
-// #include <memory>
-// #include <chrono>
-// #include <sys/uio.h>
-// #include <sys/stat.h>
-// #include <fcntl.h>
-// #include <cassert>
-// #include <cmath>
-
 class DatagramCopier : public NoBlockFileWriter {
 private:
     int _sock;
