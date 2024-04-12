@@ -24,16 +24,22 @@ logging::trivial::severity_level str_to_severity(const std::string& str) {
 }
 
 void init_logging(const std::string& log_level) {
-    logging::register_simple_formatter_factory<logging::trivial::severity_level, char>("Severity");
+    // logging::register_simple_formatter_factory<logging::trivial::severity_level, char>("Severity");
 
     auto severity = str_to_severity(log_level);
 
+   logging::core::get()->set_filter(        
+      logging::trivial::severity >= severity     
+   ); 
+
+    /*
     logging::add_console_log(
         std::cerr,
         logging::keywords::format = "[%TimeStamp%] [%Severity%] %Message%",
         logging::keywords::auto_flush = true,
         logging::keywords::severity = severity
     );
+    */
 
     // logging::add_common_attributes();
 }
