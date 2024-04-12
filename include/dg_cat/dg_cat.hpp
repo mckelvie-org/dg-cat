@@ -5,6 +5,7 @@
 //       Also, to simplify distribution, we avoid any boost dependencies that require linking to boost libraries. The resulting executable is
 //       self-contained and does not require any shared libraries other than libstdc++.
 
+#include "version.hpp"
 #include "constants.hpp"
 #include "timespec_math.hpp"
 #include "util.hpp"

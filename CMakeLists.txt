@@ -1,10 +1,10 @@
 cmake_minimum_required(VERSION 3.23)
 
 project(
-  UdpCapture
+  DgCat
   VERSION 0.0.0
-  DESCRIPTION "A tool to capture incoming high-rate, unidirectional UDP streams to a file or pipe, preserving message boundaries."
-  HOMEPAGE_URL https://github.com/mckelvie-org/udp-capture
+  DESCRIPTION "A tool to copy high-rate, unidirectional datagram streams between UDP, files, pipes, etc., while preserving message boundaries."
+  HOMEPAGE_URL https://github.com/mckelvie-org/dg-cat
   LANGUAGES CXX
 )
 
@@ -26,29 +26,32 @@ if(NOT SUBPROJECT AND BUILD_TESTING)
   add_check_warning()
 endif()
 
+#set(Boost_VERBOSE                ON)
+#set(Boost_DEBUG                  ON)
+
 set(Boost_USE_STATIC_LIBS        ON)
 set(Boost_USE_DEBUG_LIBS         ON)
 set(Boost_USE_RELEASE_LIBS       ON)
 set(Boost_USE_MULTITHREADED      ON)
 set(Boost_USE_STATIC_RUNTIME    OFF)
 find_package(argparse REQUIRED)
-find_package(Boost 1.84.0 REQUIRED COMPONENTS)
+find_package(Boost 1.84.0 REQUIRED COMPONENTS log log_setup)
 if(Boost_FOUND)
   include_directories(${Boost_INCLUDE_DIRS})
 endif()
 
-add_library(udp_capture src/udp_capture.cpp)
+add_library(dg_cat src/dg_cat.cpp)
 target_sources(
-  udp_capture PUBLIC
+  dg_cat PUBLIC
   FILE_SET HEADERS
   BASE_DIRS include
-  FILES include/udp_capture/udp_capture.hpp
+  FILES include/dg_cat/dg_cat.hpp
 )
-target_compile_features(udp_capture PRIVATE cxx_std_11)
+target_compile_features(dg_cat PRIVATE cxx_std_11)
 
-add_executable(udp_capture_exe src/main.cpp)
-set_property(TARGET udp_capture_exe PROPERTY OUTPUT_NAME udp-capture)
-target_link_libraries(udp_capture_exe PUBLIC argparse::argparse udp_capture)
+add_executable(dg_cat_exe src/main.cpp)
+set_property(TARGET dg_cat_exe PROPERTY OUTPUT_NAME dg-cat)
+target_link_libraries(dg_cat_exe PUBLIC ${Boost_LIBRARIES} argparse::argparse dg_cat )
 
 # Declare test targets if it is not a subproject and testing is enabled.
 if(NOT SUBPROJECT AND BUILD_TESTING)
@@ -56,19 +59,19 @@ if(NOT SUBPROJECT AND BUILD_TESTING)
 
   find_package(Catch2 REQUIRED)
 
-  get_target_property(udp_capture_SOURCES udp_capture SOURCES)
-  get_target_property(udp_capture_HEADER_DIRS udp_capture HEADER_DIRS)
+  get_target_property(dg_cat_SOURCES dg_cat SOURCES)
+  get_target_property(dg_cat_HEADER_DIRS dg_cat HEADER_DIRS)
 
-  add_executable(udp_capture_test test/udp_capture_test.cpp ${udp_capture_SOURCES})
-  set_property(TARGET udp_capture_test PROPERTY OUTPUT_NAME udp-capture-test)
-  target_include_directories(udp_capture_test PRIVATE ${udp_capture_HEADER_DIRS})
-  target_link_libraries(udp_capture_test PRIVATE ${Boost_LIBRARIES} Catch2::Catch2WithMain)
+  add_executable(dg_cat_test test/dg_cat_test.cpp ${dg_cat_SOURCES})
+  set_property(TARGET dg_cat_test PROPERTY OUTPUT_NAME dg-cat-test)
+  target_include_directories(dg_cat_test PRIVATE ${dg_cat_HEADER_DIRS})
+  target_link_libraries(dg_cat_test PRIVATE ${Boost_LIBRARIES} Catch2::Catch2WithMain)
 
   include(CheckCoverage)
-  target_check_coverage(udp_capture_test)
+  target_check_coverage(dg_cat_test)
 
   include(Catch)
-  catch_discover_tests(udp_capture_test)
+  catch_discover_tests(dg_cat_test)
 endif()
 
 # Enable automatic formatting if it is not a subproject and testing is enabled.
@@ -81,31 +84,31 @@ endif()
 # Declare export and install targets if it is not a subproject.
 if(NOT SUBPROJECT)
   install(
-    TARGETS udp_capture_exe udp_capture
-    EXPORT udp_capture_targets
+    TARGETS dg_cat_exe dg_cat
+    EXPORT dg_cat_targets
     LIBRARY DESTINATION lib
     RUNTIME DESTINATION bin
     FILE_SET HEADERS
   )
 
   install(
-    EXPORT udp_capture_targets
-    FILE UdpCaptureTargets.cmake
-    NAMESPACE udp_capture::
-    DESTINATION lib/cmake/UdpCapture
+    EXPORT dg_cat_targets
+    FILE DgCatTargets.cmake
+    NAMESPACE dg_cat::
+    DESTINATION lib/cmake/DgCat
   )
 
   include(CMakePackageConfigHelpers)
   write_basic_package_version_file(
-    UdpCaptureConfigVersion.cmake
+    DgCatConfigVersion.cmake
     COMPATIBILITY SameMajorVersion
   )
 
   #install(
   #  FILES
-  #    cmake/UdpCaptureConfig.cmake
-  #    ${CMAKE_CURRENT_BINARY_DIR}/UdpCaptureConfigVersion.cmake
-  #  DESTINATION lib/cmake/UdpCapture
+  #    cmake/DgCatConfig.cmake
+  #    ${CMAKE_CURRENT_BINARY_DIR}/DgCatConfigVersion.cmake
+  #  DESTINATION lib/cmake/DgCat
   #)
 
 endif()
