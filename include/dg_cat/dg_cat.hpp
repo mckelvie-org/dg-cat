@@ -7,6 +7,7 @@
 
 #include "version.hpp"
 #include "constants.hpp"
+#include "config.hpp"
 #include "timespec_math.hpp"
 #include "util.hpp"
 #include "addrinfo.hpp"
