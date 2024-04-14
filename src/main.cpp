@@ -49,23 +49,24 @@ int main(int argc, char* argv[]) {
 
     parser.add_description(
         "Copy between datagram streams while preserving message lengths.\n\n"
-        "A simple command-line utility that reads datagrams from a UDP socket, file, or pipe, and\n"
-        "forwards them to another UDP socket, file, or pipe.  For files and pipes, each datagram is\n"
-        "prefixed with a 4-byte length field in network byte order (big-endian)."
+        "A simple command-line utility that reads datagrams from a random generator, UDP socket,\n"
+        "file, or pipe, and forwards them to another UDP socket, file, or pipe. For files and\n"
+        "pipes, each datagram is prefixed with a 4-byte length field in network byte order\n"
+        "(big-endian)."
     );
 
-    parser.add_argument("--bufsize")
+    parser.add_argument("-d", "--max-datagram-size")
         .default_value(DEFAULT_MAX_DATAGRAM_SIZE)
         .help(std::string(
-            "The per-datagram buffer size.")
+            "For UDP input, the per-datagram buffer size. Datagrams larger than this are discarded.\n ")
          // + " Default is " + std::to_string(DEFAULT_MAX_DATAGRAM_SIZE) + "."
             );
 
     parser.add_argument("-b", "--max-backlog")
         .default_value(DEFAULT_MAX_BACKLOG)
         .help(std::string(
-            "For UDP sources, the maximum number of datagrams to buffer before dropping datagrrams.\n"
-            "If <=0, no datagrams are dropped (may consume unlimited memory if dst doesn't keep up).\n ")
+            "The maximum number of bytes (including 4-byte per-datagram length prefixes) to buffer\n"
+            "before stalling input. For UDP input, stalling input may cause datagrams to be dropped.\n ")
          // + "Default is " + std::to_string(DEFAULT_MAX_BACKLOG) + "."
         );
 
@@ -89,7 +90,7 @@ int main(int argc, char* argv[]) {
     parser.add_argument("--start-timeout")
         .default_value(-1.0)
         .help(std::string(
-            "For UDP sources, a number of seconds to wait for the first datagram before delivering an\n"
+            "For UDP sources, a number of seconds to wait for the first datagram before ending with an\n"
             "empty stream. If < 0, the value for --eof-timeout will be used. If 0.0, will wait forever\n"
             "for the first datagram. By default, the value for --eof-timeout is used.\n ")
         );
@@ -97,29 +98,29 @@ int main(int argc, char* argv[]) {
     parser.add_argument("-r", "--max-datagram-rate")
         .default_value(DEFAULT_MAX_DATAGRAM_RATE)
         .help(std::string(
-            "For UDP destinations, the maximun datagrams per second to send. If <= 0.0, does not limit\n"
-            "datagram send rate.")
+            "For UDP outputs, the maximun datagrams per second to send. If <= 0.0, does not limit\n"
+            "datagram send rate (may cause datagrams to be dropped by receiver or enroute).\n ")
          // + " Default is " + std::to_string(DEFAULT_MAX_DATAGRAM_RATE) + "."
         );
 
     parser.add_argument("-n", "--max-datagrams")
         .default_value(DEFAULT_MAX_DATAGRAMS)
         .help(std::string(
-            "Stop after copying the specified number of datagrams. If < 0, copy all datagrams.\n ")
+            "Stop after copying the specified number of datagrams. If <= 0, copy all datagrams.\n ")
          // + " Default is " + std::to_string(DEFAULT_MAX_DATAGRAMS) + "."
         );
 
     parser.add_argument("-w", "--max-write-size")
         .default_value(DEFAULT_MAX_WRITE_SIZE)
         .help(std::string(
-            "For files, the maximum number of bytes to write in a single system call.\n ")
+            "For file outputs, the maximum number of bytes to write in a single system call.\n ")
          // + " Default is " + std::to_string(DEFAULT_MAX_WRITE_SIZE) + "."
         );
 
     parser.add_argument("-a", "--append")
         .flag()
         .help(std::string(
-            "For file destinations, append to the file instead of truncating it.")
+            "For file outputs, append to the file instead of truncating it.")
         );
 
     parser.add_argument("-l", "--log-level")
@@ -132,7 +133,7 @@ int main(int argc, char* argv[]) {
         );
 
     parser.add_argument("src")
-        .default_value(std::string("-"))
+        .default_value(std::string("stdin"))
         .help("The source of datagrams. Can be one of: \n"
                 "    \"<filename>\"\n"
                 "    \"file://<filename>\"\n"
@@ -144,7 +145,7 @@ int main(int argc, char* argv[]) {
                 "If omitted, \"stdin\" is used.");
 
     parser.add_argument("dst")
-        .default_value(std::string("-"))
+        .default_value(std::string("stdout"))
         .help("The destination of datagrams. Can be one of: \n"
               "    \"<filename>\"\n"
               "    \"file://<filename>\"\n"
@@ -170,7 +171,7 @@ int main(int argc, char* argv[]) {
     auto log_level_s = parser.get<std::string>("log-level");
     init_logging(log_level_s);
 
-    auto bufsize = parser.get<size_t>("bufsize");
+    auto bufsize = parser.get<size_t>("max-datagram-size");
     auto max_backlog = parser.get<size_t>("max-backlog");
     auto polling_interval = parser.get<double>("polling-interval");
     auto eof_timeout = parser.get<double>("eof-timeout");
