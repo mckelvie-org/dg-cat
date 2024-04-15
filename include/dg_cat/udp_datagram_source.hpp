@@ -19,7 +19,7 @@
 
 #include <sys/socket.h>
 #include <sys/uio.h>
-
+#include <time.h>
 
 typedef int SockFd;
 
@@ -127,6 +127,19 @@ public:
         }
     }
 
+    /**
+     * @brief factory-invoked static method to create a UdpDatagramSource
+     * 
+     * @param config   The configuration object
+     * @param path     The path to the source
+     * 
+     * @return unique_ptr<DatagramSource>
+     */
+    static std::unique_ptr<DatagramSource> create(const DgCatConfig& config, const std::string& path) {
+        return std::make_unique<UdpDatagramSource>(config, path);
+    }
+
+
     ~UdpDatagramSource() override
     {
         close();
@@ -173,8 +186,15 @@ public:
                 int n = recvmmsg(_sock, _msgs.data(), _msgs.size(), MSG_WAITFORONE, nullptr);
                 if (n == -1) {
                     if (errno == EAGAIN || errno == EWOULDBLOCK) {
-                        BOOST_LOG_TRIVIAL(debug) << "Timeout waiting for datagram; shutting down\n";
+                        BOOST_LOG_TRIVIAL(debug) << "Timeout waiting for datagram; generating EOF\n";
                         break;
+                    }
+                    if (errno == EBADF || errno == ENOTSOCK) {
+                        std::lock_guard<std::mutex> lock(_mutex);
+                        if (_force_eof) {
+                            BOOST_LOG_TRIVIAL(debug) << "recvmmsg got closed socket handle with _force_eof; generating EOF\n";
+                            break;
+                        }
                     }
                     if (errno == EINTR) {
                         BOOST_LOG_TRIVIAL(debug) << "Interrupted by signal; continuing\n";
@@ -209,8 +229,6 @@ public:
                     stats.end_time = end_time;
                 }
             }
-
-            // TODO: Update final stats.
         }
     }
 

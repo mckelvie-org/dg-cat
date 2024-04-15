@@ -40,7 +40,7 @@ if(Boost_FOUND)
   include_directories(${Boost_INCLUDE_DIRS})
 endif()
 
-add_library(dg_cat src/dg_cat.cpp)
+add_library(dg_cat src/datagram_source.cpp src/datagram_destination.cpp)
 target_sources(
   dg_cat PUBLIC
   FILE_SET HEADERS
