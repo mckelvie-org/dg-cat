@@ -24,7 +24,7 @@ public:
      *        thread than copy_to_buffer_queue(). This method will be called when an asynchronous signal is received
      *       to terminate the program cleanly.
      */
-    virtual void force_eof(void) = 0;
+    virtual void force_eof() = 0;
 
     /**
      * @brief static factory method to create a typed DatagramSource based on a pathname

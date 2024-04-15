@@ -3,7 +3,7 @@
 
 std::unique_ptr<DatagramDestination> DatagramDestination::create(const DgCatConfig& config, const std::string& path)
 {
-    if (path.compare(0, 6, "file://") == 0) {
+    if (path.compare(0, 7, "file://") == 0) {
         return FileDatagramDestination::create(config, path);
     } else {
         throw std::runtime_error("Unsupported protocol in path: " + path);

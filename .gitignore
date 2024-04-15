@@ -51,3 +51,4 @@ compile_commands.json
 CTestTestfile.cmake
 _deps
 /CPM_modules/
+/output.bin

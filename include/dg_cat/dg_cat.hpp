@@ -15,5 +15,4 @@
 #include "stats.hpp"
 #include "datagram_source.hpp"
 #include "datagram_destination.hpp"
-//#include "no_block_file_writer.hpp"
-//#include "datagram_copier.hpp"
+#include "datagram_copier.hpp"

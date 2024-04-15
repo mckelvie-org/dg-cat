@@ -57,6 +57,7 @@ int main(int argc, char* argv[]) {
 
     parser.add_argument("-d", "--max-datagram-size")
         .default_value(DEFAULT_MAX_DATAGRAM_SIZE)
+        .scan<'u', size_t>()
         .help(std::string(
             "For UDP input, the per-datagram buffer size. Datagrams larger than this are discarded.\n ")
          // + " Default is " + std::to_string(DEFAULT_MAX_DATAGRAM_SIZE) + "."
@@ -64,6 +65,7 @@ int main(int argc, char* argv[]) {
 
     parser.add_argument("-b", "--max-backlog")
         .default_value(DEFAULT_MAX_BACKLOG)
+        .scan<'u', size_t>()
         .help(std::string(
             "The maximum number of bytes (including 4-byte per-datagram length prefixes) to buffer\n"
             "before stalling input. For UDP input, stalling input may cause datagrams to be dropped.\n ")
@@ -72,6 +74,7 @@ int main(int argc, char* argv[]) {
 
     parser.add_argument("-p", "--polling-interval")
         .default_value(DEFAULT_POLLING_INTERVAL)
+        .scan<'g', double>()
         .help(std::string(
             "For UDP sources, the low-level timeout on recv(), in seconds. This is the maximum latency\n"
             "between a shutdown condition and shutting down.")
@@ -80,6 +83,7 @@ int main(int argc, char* argv[]) {
 
     parser.add_argument("-t", "--eof-timeout")
         .default_value(DEFAULT_EOF_TIMEOUT_SECS)
+        .scan<'g', double>()
         .help(std::string(
             "For UDP sources, a number of seconds with no datagrams received that should be interpreted\n"
             "as an EOF. If <= 0.0, allows unlimited time between datagrams (copying will not terminate\n"
@@ -89,6 +93,7 @@ int main(int argc, char* argv[]) {
 
     parser.add_argument("--start-timeout")
         .default_value(-1.0)
+        .scan<'g', double>()
         .help(std::string(
             "For UDP sources, a number of seconds to wait for the first datagram before ending with an\n"
             "empty stream. If < 0, the value for --eof-timeout will be used. If 0.0, will wait forever\n"
@@ -97,6 +102,7 @@ int main(int argc, char* argv[]) {
 
     parser.add_argument("-r", "--max-datagram-rate")
         .default_value(DEFAULT_MAX_DATAGRAM_RATE)
+        .scan<'g', double>()
         .help(std::string(
             "For UDP outputs, the maximun datagrams per second to send. If <= 0.0, does not limit\n"
             "datagram send rate (may cause datagrams to be dropped by receiver or enroute).\n ")
@@ -105,13 +111,15 @@ int main(int argc, char* argv[]) {
 
     parser.add_argument("-n", "--max-datagrams")
         .default_value(DEFAULT_MAX_DATAGRAMS)
+        .scan<'u', uint64_t>()
         .help(std::string(
-            "Stop after copying the specified number of datagrams. If <= 0, copy all datagrams.\n ")
+            "Stop after copying the specified number of datagrams. If 0, copy all datagrams.\n ")
          // + " Default is " + std::to_string(DEFAULT_MAX_DATAGRAMS) + "."
         );
 
     parser.add_argument("-w", "--max-write-size")
         .default_value(DEFAULT_MAX_WRITE_SIZE)
+        .scan<'u', size_t>()
         .help(std::string(
             "For file outputs, the maximum number of bytes to write in a single system call.\n ")
          // + " Default is " + std::to_string(DEFAULT_MAX_WRITE_SIZE) + "."
@@ -119,6 +127,7 @@ int main(int argc, char* argv[]) {
 
     parser.add_argument("--max-iovecs")
         .default_value(DEFAULT_MAX_IOVECS)
+        .scan<'u', size_t>()
         .help(std::string(
             "For UDP inputs, the maximum number of datagrams that can be received in a single\n"
             "recvmmsg() call. Regardless of value, will be limited to sysconf(_SC_IOV_MAX).\n"
@@ -212,104 +221,14 @@ int main(int argc, char* argv[]) {
     BOOST_LOG_TRIVIAL(debug) <<
         "Starting dg-cat with " << config.to_string() << "\n";
     
+    DatagramCopier copier(config, src, dst);
 
-# if 0
-    size_t max_dg_size = 65535;
-    size_t max_backlog = DEFAULT_MAX_BACKLOG;
-    size_t max_write_size = DEFAULT_MAX_WRITE_SIZE;
-    double first_datagram_timeout_secs = 60.0;
-    double datagram_timeout_secs = 10.0;
+    copier.start();
+    copier.wait();
 
-    std::string addr_and_port(argv[1]);
-    std::string output_file(argv[2]);
+    auto stats = copier.get_stats();
 
-    size_t colon_pos = addr_and_port.rfind(':');
-    std::string addr_str;
-    uint16_t  port;
-    if (colon_pos == std::string::npos) {
-        addr_str = std::string("0.0.0.0");
-        port = std::stoi(addr_and_port);
-    } else {
-        addr_str = addr_and_port.substr(0, colon_pos);
-        port = std::stoi(addr_and_port.substr(colon_pos + 1));
-    }
-
-
-    AddrInfoList addrinfo_list(
-        addr_str.c_str(),
-        std::to_string(port).c_str(),
-        AI_PASSIVE,
-        AF_UNSPEC,
-        SOCK_DGRAM
-      );
-
-    if (addrinfo_list.size() == 0) {
-        throw std::runtime_error("No addresses found for " + addr_str + ":" + std::to_string(port));
-    }
-
-    for(auto ai = addrinfo_list.begin(); ai != addrinfo_list.end(); ++ai) {
-        auto& entry = *ai;
-        std::cerr << "Addr=" << entry.addr_string() << " (" << entry->ai_addr << ") Family=" << entry->ai_family << " SockType=" << entry->ai_socktype << " Protocol=" << entry->ai_protocol << "\n";
-    }
-        
-
-    int s = -1;
-    AddrInfoList::Entry matching_entry;
-    for(auto ai = addrinfo_list.begin(); ai != addrinfo_list.end(); ++ai) {
-        auto& entry = *ai;
-        s = socket(entry->ai_family, entry->ai_socktype, entry->ai_protocol);
-        if (s == -1) {
-            continue;
-        }
-
-        if (bind(s, entry->ai_addr, entry->ai_addrlen) == 0) {
-            matching_entry = entry;
-            break;
-        }
-
-        close(s);
-    }
-
-    if (s == -1) {
-        throw std::runtime_error("Could not bind socket to any addresses");
-    }
-
-    std::cerr << "Bound to " << matching_entry.addr_string() << ":" << port << "\n";
-
-    {
-        FileCloser file(::open(output_file.c_str(), O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0660));
-        if (file.fd < 0) {
-            throw std::system_error(errno, std::system_category(), "open() failed");
-        }
-        DatagramCopier copier(
-            s,
-            file.fd,
-            max_dg_size,
-            max_backlog,
-            max_write_size,
-            datagram_timeout_secs,
-            first_datagram_timeout_secs
-        );
-
-        copier.copy();
-        file.close();
-
-        auto stats = copier.get_stats();
-
-        std::cerr << "\nFinished copying datagrams\n";
-
-        std::cerr << "Received " << stats.n_datagrams << " datagrams totaling " << stats.n_datagram_bytes << " datagram bytes (not including length prefixes)\n";
-        std::cerr << "Discarded " << stats.n_datagrams_discarded << " datagrams\n";
-        std::cerr << "Max clump size: " << stats.max_clump_size << " datagrams\n";
-        std::cerr << "Min datagram size: " << stats.min_datagram_size << " bytes\n";
-        std::cerr << "Max datagram size: " << stats.max_datagram_size << " bytes\n";
-        std::cerr << "Mean datagram size: " << stats.mean_datagram_size() << " bytes\n";
-        std::cerr << "Elapsed time: " << stats.elapsed_secs()  << " seconds\n";
-        std::cerr << "Max backlog: " << stats.max_backlog_bytes << " bytes\n";
-        std::cerr << "Throughput: " << stats.throughput_datagrams_per_sec() << " datagrams/second (" << stats.throughput_bytes_per_sec() << " bytes/second)\n";
-    }
-
-#endif
+    std::cerr << "\nFinished: " << stats.brief_str() << std::endl;
 
     return 0;
 }

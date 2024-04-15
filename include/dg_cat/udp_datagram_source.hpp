@@ -167,13 +167,9 @@ public:
 
             // Run recvmmsg forever
             uint64_t n_datagrams = 0;
-            uint64_t n_total_bytes_produced = 0;
-            uint64_t n_total_datagrams_discarded = 0;
-            size_t min_produced_datagram_size = 0;
-            size_t max_produced_datagram_size = 0;
-            size_t first_produced_datagram_size = 0;
             struct timespec end_time;
             struct timespec start_time;
+            time_t start_clock_time = 0;
             struct timespec *current_timeout = nullptr;
             while (true) {
                 auto old_n_datagrams = n_datagrams;
@@ -209,6 +205,8 @@ public:
                 clock_gettime(CLOCK_REALTIME, &end_time);
                 if (n_datagrams == 0) {
                     start_time = end_time;
+                    start_clock_time = time(nullptr);
+
                     BOOST_LOG_TRIVIAL(debug) << "First datagram received...\n";
                 }
                 if (n > 1 && n == _config.max_iovecs) {
@@ -218,13 +216,8 @@ public:
                 n_datagrams += n;
                 {
                     std::lock_guard<std::mutex> lock(stats._mutex);
-                    stats.n_datagrams = n_datagrams;
-                    stats.n_datagram_bytes = n_total_bytes_produced - (n_datagrams * PREFIX_LEN);
-                    stats.n_datagrams_discarded = n_total_datagrams_discarded;
-                    stats.min_datagram_size = min_produced_datagram_size;
-                    stats.max_datagram_size = max_produced_datagram_size;
-                    stats.first_datagram_size = first_produced_datagram_size;
                     stats.max_clump_size = std::max(stats.max_clump_size, n_datagrams - old_n_datagrams);
+                    stats.start_clock_time = start_clock_time;
                     stats.start_time = start_time;
                     stats.end_time = end_time;
                 }
@@ -236,7 +229,7 @@ public:
      * @brief Force an EOF condition on the source. This method will be called from a different
      *        thread than copy_to_buffer_queue().
      */
-    void force_eof(void) override {
+    void force_eof() override {
         {
             std::unique_lock<std::mutex> lock(_mutex);
             _force_eof = true;

@@ -31,10 +31,21 @@
 
 #include <cstdint>
 #include <algorithm>
-#include <unistd.h>
 #include <cstring>
+#include <string>
 #include <memory>
 #include <mutex>
+
+
+#include <unistd.h>
+
+inline static std::string time_t_to_utc_string(time_t time) {
+    char buf[32];
+    struct tm tm;
+    gmtime_r(&time, &tm);
+    strftime(buf, sizeof(buf), "%Y-%m-%dT%H:%M:%SZ", &tm);
+    return std::string(buf);
+}
 
 /**
  * @brief Class template that adds a mutex to a stats object, and holds mutexes during copy construct/assignment operations.
@@ -76,24 +87,14 @@ public:
  */
 class DgSourceStats {
 public:
-    uint64_t n_datagrams;               // Number of datagrams produced
-    uint64_t n_datagram_bytes;          // Number of datagram bytes produced (not including length prefixes)
-    uint64_t n_datagrams_discarded;     // Number of datagrams discarded due to buffer overflow
     size_t max_clump_size;              // Maximum number of datagrams produced in a single call to recvmmsg
-    size_t min_datagram_size;           // Minimum datagram size produced
-    size_t max_datagram_size;           // Maximum datagram size produced
-    size_t first_datagram_size;         // Size of the first datagram produced
-    struct timespec start_time;         // Time the first datagram was produced
+    time_t start_clock_time;            // Clock time the first datagram was produced
+    struct timespec start_time;         // System elapsed time the first datagram was produced
     struct timespec end_time;           // Time the last datagram was produced
 
     DgSourceStats() :
-        n_datagrams(0),
-        n_datagram_bytes(0),
-        n_datagrams_discarded(0),
         max_clump_size(0),
-        min_datagram_size(0),
-        max_datagram_size(0),
-        first_datagram_size(0)
+        start_clock_time(0)
     {
         memset(&start_time, 0, sizeof(start_time));
         memset(&end_time, 0, sizeof(end_time));
@@ -108,22 +109,13 @@ public:
         return std::max(timespec_to_secs(timespec_subtract(end_time, start_time)), 0.0);
     }
 
-    double throughput_datagrams_per_sec() const {
-        auto secs = elapsed_secs();
-        // since start is time of first packet, and end is time of last packet, we need to
-        // subtract 1 from the number of packets to get the number of intervals between packets
-        return secs == 0.0 ? 0.0 : ((std::max(n_datagrams, (uint64_t)1) - 1) / elapsed_secs());
-    }
 
-    double throughput_bytes_per_sec() const {
-        auto secs = elapsed_secs();
-        // since start is time of first packet, and end is time of last packet, we need to
-        // not count the first packet in the number of bytesused to calculate throughput
-        return secs == 0.0 ? 0.0 : ((std::max(n_datagram_bytes, first_datagram_size) - first_datagram_size) / elapsed_secs());
-    }
-
-    double mean_datagram_size() const {
-        return n_datagrams == 0 ? 0.0 : (double)n_datagram_bytes / (double)n_datagrams;
+    std::string brief_str() const {
+        return std::string() +
+               "max_clump_size=" + std::to_string(max_clump_size) +
+               ", start_clock time=" +  time_t_to_utc_string(start_clock_time) +
+               ", elapsed_secs=" + std::to_string(elapsed_secs()) +
+               "";
     }
 };
 
@@ -143,6 +135,11 @@ public:
     DgDestinationStats(DgDestinationStats&&) = default;
     DgDestinationStats& operator=(const DgDestinationStats&) = default;
     DgDestinationStats& operator=(DgDestinationStats&&) = default;
+
+    std::string brief_str() const {
+        return std::string("");
+    }
+  
 };
 
 typedef LockableStats<DgDestinationStats> LockableDgDestinationStats;
@@ -153,9 +150,21 @@ typedef LockableStats<DgDestinationStats> LockableDgDestinationStats;
 class DgBufferStats {
 public:
     size_t max_backlog_bytes;           // Maximum number of bytes buffered for writing
+    uint64_t n_datagrams;               // Number of datagrams produced
+    uint64_t n_datagrams_discarded;     // Number of datagrams discarded
+    uint64_t n_datagram_bytes;          // Number of datagram bytes produced (not including length prefixes)
+    size_t min_datagram_size;           // Minimum datagram size produced
+    size_t max_datagram_size;           // Maximum datagram size produced
+    size_t first_datagram_size;         // Size of the first datagram produced
 
     DgBufferStats() :
-        max_backlog_bytes(0)
+        max_backlog_bytes(0),
+        n_datagrams(0),
+        n_datagrams_discarded(0),
+        n_datagram_bytes(0),
+        min_datagram_size(0),
+        max_datagram_size(0),
+        first_datagram_size(0)
     {
     }
 
@@ -163,6 +172,18 @@ public:
     DgBufferStats(DgBufferStats&&) = default;
     DgBufferStats& operator=(const DgBufferStats&) = default;
     DgBufferStats& operator=(DgBufferStats&&) = default;
+
+    std::string brief_str() const {
+        return std::string() +
+               "max_backlog_bytes=" + std::to_string(max_backlog_bytes) +
+               ", n_datagrams=" + std::to_string(n_datagrams) +
+               ", n_datagrams_discarded=" + std::to_string(n_datagrams_discarded) +
+               ", n_datagram_bytes=" + std::to_string(n_datagram_bytes) +
+               ", min_datagram_size=" + std::to_string(min_datagram_size) +
+               ", max_datagram_size=" + std::to_string(max_datagram_size) +
+               ", first_datagram_size=" + std::to_string(first_datagram_size) +
+               "";
+    }
 
 };
 
@@ -211,6 +232,56 @@ public:
     }
     DgCatStats& operator=(const DgCatStats&) = default;
     DgCatStats& operator=(DgCatStats&&) = default;
+
+    double elapsed_secs() const {
+        return source_stats.elapsed_secs();
+    }
+
+    double throughput_datagrams_per_sec() const {
+        auto secs = elapsed_secs();
+        // since start is time of first packet, and end is time of last packet, we need to
+        // subtract 1 from the number of packets to get the number of intervals between packets
+        return secs == 0.0 ? 0.0 : ((std::max(buffer_stats.n_datagrams, (uint64_t)1) - 1) / elapsed_secs());
+    }
+
+    double throughput_bytes_per_sec() const {
+        auto secs = elapsed_secs();
+        // since start is time of first packet, and end is time of last packet, we need to
+        // not count the first packet in the number of bytesused to calculate throughput
+        return secs == 0.0 ? 0.0 : ((std::max(buffer_stats.n_datagram_bytes, buffer_stats.first_datagram_size) - buffer_stats.first_datagram_size) / elapsed_secs());
+    }
+
+    double mean_datagram_size() const {
+        return buffer_stats.n_datagrams == 0 ? 0.0 : (double)buffer_stats.n_datagram_bytes / (double)buffer_stats.n_datagrams;
+    }
+
+    std::string brief_str() const {
+        std::string source_str = source_stats.brief_str();
+        std::string buffer_str = buffer_stats.brief_str();
+        std::string destination_str = destination_stats.brief_str();
+        std::string result = source_str;
+        if (buffer_str.length() > 0) {
+            if (result.length() > 0) {
+                result += ", ";
+            }
+            result += buffer_str;
+        }
+        if (destination_str.length() > 0) {
+            if (result.length() > 0) {
+                result += ", ";
+            }
+            result += destination_str;
+        }
+        if (result.length() > 0) {
+            result += ", ";
+        }
+        result += "elapsed_secs=" + std::to_string(elapsed_secs()) +
+                  ", throughput_datagrams_per_sec=" + std::to_string(throughput_datagrams_per_sec()) +
+                  ", throughput_bytes_per_sec=" + std::to_string(throughput_bytes_per_sec()) +
+                  ", mean_datagram_size=" + std::to_string(mean_datagram_size()) +
+                  "";
+        return result;
+    }
 };
 
 /**

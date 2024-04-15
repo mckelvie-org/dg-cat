@@ -2,15 +2,18 @@
 
 
 #include "constants.hpp"
-#include <sys/socket.h>
+#include "stats.hpp"
+
 #include <boost/endian/conversion.hpp>
 #include <iostream>
 #include <vector>
 #include <mutex>
 #include <condition_variable>
 #include <memory>
-#include <sys/uio.h>
 #include <cassert>
+
+#include <sys/socket.h>
+#include <sys/uio.h>
 
 class BufferQueue {
     /**
@@ -31,13 +34,10 @@ private:
     size_t _consumer_index;   // Index of the next byte to be consumed by a consumer
 
 protected:
+    const DgCatConfig& _config;
+    LockableDgBufferStats& _shared_stats;
+    DgBufferStats _stats;
     size_t _n;                // Number of bytes in the queue
-    uint64_t _n_total_bytes_produced;
-    uint64_t _n_total_datagrams_produced;
-    uint64_t _n_total_datagrams_discarded;
-    size_t _min_produced_datagram_size;
-    size_t _max_produced_datagram_size;
-    size_t _first_produced_datagram_size;
     bool _is_eof;
 
 public:
@@ -77,21 +77,18 @@ public:
     };
 
     BufferQueue(
-        size_t max_n = DEFAULT_MAX_BACKLOG
+        const DgCatConfig& config,
+        LockableDgBufferStats& stats
     ) :
-        _max_n(max_n),
+        _max_n(config.max_backlog),
         _producer_index(0),
         _consumer_index(0),
+        _config(config),
+        _shared_stats(stats),
         _n(0),
-        _n_total_bytes_produced(0),
-        _n_total_datagrams_produced(0),
-        _n_total_datagrams_discarded(0),
-        _min_produced_datagram_size(0),
-        _max_produced_datagram_size(0),
-        _first_produced_datagram_size(0),
         _is_eof(false)
     {
-        _data.resize(max_n);
+        _data.resize(_max_n);
     }
 
     /**
@@ -189,8 +186,8 @@ public:
                 throw std::runtime_error("Producer attempted to write to BufferQueue after EOF");
             }
 
-
             bool need_notify = false;
+            bool need_update_stats = false;
             for (size_t i = 0; i < n_buffers; ++i) {
                 const struct mmsghdr& mmsg_hdr = mmsg_hdrs[i];
                 const struct msghdr& msg_hdr = mmsg_hdr.msg_hdr;
@@ -202,13 +199,18 @@ public:
                     } else {
                         std::cerr << "   WARNING: datagram truncated; discarding, len=" << dg_len << " bytes, flags=" << std::hex << flags << std::dec << "\n";
                     }
-                    _n_total_datagrams_discarded++;
+                    _stats.n_datagrams_discarded++;
+                    need_update_stats = true;
                     continue;
                 }
                 if (_max_n < dg_len + PREFIX_LEN) {
                     throw std::runtime_error("Datagram + PREFIX too large for buffer: " + std::to_string(dg_len) + " + 4 bytes, max=" + std::to_string(_max_n) + " bytes");
                 }
                 if (n_free_locked() < dg_len + PREFIX_LEN) {
+                    if (need_update_stats) {
+                         _shared_stats = _stats;
+                        need_update_stats = false;
+                    }
                     if (need_notify) {
                         _cv.notify_all();
                         need_notify = false;
@@ -227,12 +229,17 @@ public:
                 need_notify = true;
                 put_data_locked_no_notify((const char *)&len_network_byte_order, PREFIX_LEN);
                 put_data_locked_no_notify(dg_data, dg_len);
-                _max_produced_datagram_size = std::max(_max_produced_datagram_size, dg_len);
-                _min_produced_datagram_size = (_n_total_datagrams_produced == 0) ? dg_len : std::min(_min_produced_datagram_size, dg_len);
-                if (_n_total_datagrams_produced == 0) {
-                    _first_produced_datagram_size = dg_len;
+                _stats.max_datagram_size = std::max(_stats.max_datagram_size, dg_len);
+                _stats.min_datagram_size = (_stats.n_datagrams == 0) ? dg_len : std::min(_stats.min_datagram_size, dg_len);
+                if (_stats.n_datagrams == 0) {
+                    _stats.first_datagram_size = dg_len;
                 }
-                _n_total_datagrams_produced++;
+                _stats.n_datagrams++;
+                _stats.n_datagram_bytes += dg_len;
+                need_update_stats = true;
+            }
+            if (need_update_stats) {
+                 _shared_stats = _stats;
             }
             if (need_notify) {
                 _cv.notify_all();
@@ -262,6 +269,7 @@ public:
             }
 
             bool need_notify = false;
+            bool need_update_stats = false;
             for (size_t i = 0; i < n_buffers; ++i) {
                 const struct mmsghdr& mmsg_hdr = mmsg_hdrs[i];
                 const struct msghdr& msg_hdr = mmsg_hdr.msg_hdr;
@@ -273,6 +281,8 @@ public:
                     } else {
                         std::cerr << "   WARNING: datagram truncated; discarding, len=" << dg_len << " bytes, flags=" << std::hex << flags << std::dec << "\n";
                     }
+                    _stats.n_datagrams_discarded++;
+                    need_update_stats = true;
                     n_buffers_committed++;
                     continue;
                 }
@@ -280,6 +290,10 @@ public:
                     throw std::runtime_error("Datagram + PREFIX too large for buffer: " + std::to_string(dg_len) + " + 4 bytes, max=" + std::to_string(_max_n) + " bytes");
                 }
                 if (n_free_locked() < dg_len + PREFIX_LEN) {
+                    if (need_update_stats) {
+                         _shared_stats = _stats;
+                        need_update_stats = false;
+                    }
                     if (need_notify) {
                         _cv.notify_all();
                         need_notify = false;
@@ -302,7 +316,18 @@ public:
                 put_data_locked_no_notify((const char *)&len_network_byte_order, PREFIX_LEN);
                 put_data_locked_no_notify(dg_data, dg_len);
                 n_buffers_committed++;
-                _n_total_datagrams_produced++;
+                _stats.max_datagram_size = std::max(_stats.max_datagram_size, dg_len);
+                _stats.min_datagram_size = (_stats.n_datagrams == 0) ? dg_len : std::min(_stats.min_datagram_size, dg_len);
+                if (_stats.n_datagrams == 0) {
+                    _stats.first_datagram_size = dg_len;
+                }
+                _stats.n_datagrams++;
+                _stats.n_datagram_bytes += dg_len;
+                need_update_stats = true;
+            }
+            if (need_update_stats) {
+                    _shared_stats = _stats;
+                need_update_stats = false;
             }
             if (need_notify) {
                 _cv.notify_all();
@@ -421,7 +446,6 @@ protected:
                 _producer_index = (_producer_index + n_rem) % _max_n;
             }
             _n += n;
-            _n_total_bytes_produced += n;
         }
     }
 

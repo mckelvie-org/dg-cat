@@ -1,156 +1,157 @@
 #pragma once
 
-#include "constants.hpp"
-#include "timespec_math.hpp"
-#include "util.hpp"
+#include <memory>
+#include <thread>
+#include <atomic>
+#include <mutex>
+
+#include "config.hpp"
 #include "buffer_queue.hpp"
-#include "no_block_file_writer.hpp"
 #include "stats.hpp"
-#include "file_closer.hpp"
+#include "datagram_source.hpp"
+#include "datagram_destination.hpp"
 
-class DatagramCopier : public NoBlockFileWriter {
+/**
+ * @brief An object that can copy datagrams between an abstract source an an abstract destination.
+ */
+class DatagramCopier {
 private:
-    int _sock;
-    size_t _max_datagram_size;
-    double _datagram_timeout_secs;
-    double _first_datagram_timeout_secs;
-    size_t _n_max_iovecs;
+    std::mutex _mutex;
+    const DgCatConfig& _config;
+    LockableDgCatStats _stats;
+    BufferQueue _buffer_queue;
+    std::unique_ptr<DatagramSource> _source;
+    std::unique_ptr<DatagramDestination> _destination;
+    std::atomic<uint64_t> _stat_seq;
+     std::thread _source_thread;
+    std::thread _destination_thread;
 
-    DgCatStats _stats;
-    uint64_t _stat_version;
-    bool _copying;
-
+    /**
+     * @brief An exception that was raised in a worker thread. This will be rethrown in the main thread when
+     *        wait() is called.
+     */
+    std::exception_ptr _exception;
 
 public:
+    /**
+     * @brief Construct a DatagramCopier object from abstract source and destination
+     * 
+     * @param config The configuration object
+     * @param source The datagram source
+     * @param destination The datagram destination
+     */
     DatagramCopier(
-        int sock,
-        int output_file,
-        size_t max_datagram_size = DEFAULT_MAX_DATAGRAM_SIZE,            // Max datagram size. 65535 is the maximum allowed by UDP. Truncated datagrams are discarded.
-        size_t max_buffer_bytes = DEFAULT_MAX_BACKLOG,                   // Maximum number of buffered bytes to hold for background writing
-        size_t max_write_size = 256*1024,                                // Maximum number of bytes to write in a single write() or writev() call
-        double datagram_timeout_secs = DEFAULT_DATAGRAM_TIMEOUT_SECS,    // Timeout between datagrams; after this time, stream is considered ended. If 0, wait forever for next datagram.
-        double first_datagram_timeout_secs = -1.0,                       // Timeout for first datagram. If 0, wait forever for first datagram. If < 0, use datagram_timeout_secs.
-        size_t n_max_iovecs = 0                                          // Maximum number of iovecs that can be used in a single recvmmsg() call. limited to sysconf(_SC_IOV_MAX). 0 means use max possible.
-    ) :
-        NoBlockFileWriter(output_file, max_datagram_size, max_buffer_bytes, max_write_size),
-        _sock(sock),
-        _max_datagram_size(max_datagram_size),
-        _datagram_timeout_secs(datagram_timeout_secs),
-        _first_datagram_timeout_secs(first_datagram_timeout_secs),
-        _n_max_iovecs(n_max_iovecs),
-        _stat_version(0),
-        _copying(false)
+                const DgCatConfig& config,
+                std::unique_ptr<DatagramSource>&& source,
+                std::unique_ptr<DatagramDestination>&& destination
+            ) :
+        _config(config),
+        _buffer_queue(config, _stats.buffer_stats),
+        _source(std::move(source)),
+        _destination(std::move(destination))
     {
-        if (_first_datagram_timeout_secs < 0.0) {
-            _first_datagram_timeout_secs = _datagram_timeout_secs;
-        }
-        auto sys_max_iovecs = (size_t)sysconf(_SC_IOV_MAX);
-        if (sys_max_iovecs < 0) {
-            throw std::system_error(errno, std::system_category(), "sysconf(_SC_IOV_MAX) failed");
-        }
-        if (_n_max_iovecs == 0 || _n_max_iovecs > (size_t)sys_max_iovecs) {
-            _n_max_iovecs = (size_t)sys_max_iovecs;
-        }
-        std::cerr << "DataGramCopier: max iovecs per recvmmsg=" << _n_max_iovecs << "\n";
     }
 
-    DgCatStats get_stats(void) {
+    /**
+     * @brief Construct a DatagramCopier object from source and destination paths
+     * 
+     * @param config The configuration object
+     * @param source The datagram source path
+     * @param destination The datagram destination path
+     */
+    DatagramCopier(
+                const DgCatConfig& config,
+                const std::string& source,
+                const std::string& destination
+            ) :
+        _config(config),
+        _buffer_queue(config, _stats.buffer_stats),
+        _source(DatagramSource::create(config, source)),
+        _destination(DatagramDestination::create(config, destination))
+    {
+    }
+
+    ~DatagramCopier()
+    {
+        close();
+    }
+
+    /**
+     * @brief Get real-time progress statistics. Thread-safe.
+     * 
+     * @return DgCatStats The current statistics. The stat_seq field will be incremented for each call to get_stats().
+     */
+    DgCatStats get_stats()
+    {
         std::lock_guard<std::mutex> lock(_mutex);
-        return _stats;
+        auto seq = _stat_seq++;
+        return _stats.get(seq);
     }
 
-    void copy(
-    )
-    {
-        {
-            struct timespec first_dg_timespec;
-            struct timespec dg_timespec;
-
-            if (_first_datagram_timeout_secs > 0.0) {
-                first_dg_timespec.tv_sec = (time_t)_first_datagram_timeout_secs;
-                first_dg_timespec.tv_nsec = (long)((_first_datagram_timeout_secs - (double)first_dg_timespec.tv_sec) * 1.0e9);
-                // std::cerr << "First datagram timeout: " << first_dg_timespec.tv_sec << " seconds, " << first_dg_timespec.tv_nsec << " nanoseconds\n";
-            }
-
-
-            if (_datagram_timeout_secs > 0.0) {
-                dg_timespec.tv_sec = (time_t)_datagram_timeout_secs;
-                dg_timespec.tv_nsec = (long)((_datagram_timeout_secs - (double)dg_timespec.tv_sec) * 1.0e9);
-                // std::cerr << "Datagram timeout: " << dg_timespec.tv_sec << " seconds, " << dg_timespec.tv_nsec << " nanoseconds\n";
-            }
-
-            // Allocate reusable buffers for recvmmsg
-            std::vector<std::vector<char>> buffers(_n_max_iovecs);
-            std::vector<struct mmsghdr> msgs(_n_max_iovecs);
-            std::vector<struct iovec> iovs(_n_max_iovecs);
-            for (size_t i = 0; i < _n_max_iovecs; ++i) {
-                auto& buffer = buffers[i];
-                auto& msg = msgs[i];
-                auto& iov = iovs[i];
-                buffer.resize(_max_datagram_size);
-                iov.iov_base = buffer.data();
-                iov.iov_len = buffer.size();
-                msg.msg_hdr.msg_iov = &iov;
-                msg.msg_hdr.msg_iovlen = 1;
-            }
-
-            // Run recvmmsg forever
-            uint64_t n_datagrams = 0;
-            struct timespec end_time;
-            struct timespec start_time;
-            struct timespec *current_timeout = nullptr;
-            while (true) {
-                auto old_n_datagrams = n_datagrams;
-                auto timeout = (n_datagrams == 0) ? &first_dg_timespec : &dg_timespec;
-                if (timeout != current_timeout) {
-                    // std::cerr << "Setting timeout to " << timeout->tv_sec << " seconds, " << timeout->tv_nsec << " nanoseconds\n";
-                    setsockopt(_sock, SOL_SOCKET, SO_RCVTIMEO, timeout, sizeof(*timeout));
-                    current_timeout = timeout;
-                }
-                int n = recvmmsg(_sock, msgs.data(), msgs.size(), MSG_WAITFORONE, nullptr);
-                if (n == -1) {
-                    if (errno == EAGAIN || errno == EWOULDBLOCK) {
-                        std::cerr << "Timeout waiting for datagram; shutting down\n";
-                        break;
-                    }
-                    if (errno == EINTR) {
-                        std::cerr << "Interrupted by signal; continuing\n";
-                        continue;
-                    }
-                    throw std::system_error(errno, std::system_category(), "recvmmsg() failed");
-                }
-                if (n == 0) {
-                    std::cerr << "Timeout waiting for datagram; shutting down\n";
-                    break;
-                }
-                clock_gettime(CLOCK_REALTIME, &end_time);
-                if (n_datagrams == 0) {
-                    start_time = end_time;
-                    std::cerr << "First datagram received...\n";
-                }
-                if (n > 1 && n == _n_max_iovecs) {
-                    std::cerr << "   WARNING: recvmmsg response full (" << n << " datagrams), possible packet loss)\n";
-                }
-                producer_commit_batch(msgs.data(), n);
-                n_datagrams += n;
+    /**
+     * @brief Copy datagrams from the source until an EOF is encountered or force_eof() is called.
+     * 
+     * @param buffer_queue The buffer queue to write datagrams to.
+     * @param stats        The threadsafe stats object to update with real-time progress.
+     */
+    void start() {
+        _destination_thread = std::thread([&] {
+            try {
+                _destination->copy_from_buffer_queue(_buffer_queue, _stats.destination_stats);
+            } catch (...) {
                 {
                     std::lock_guard<std::mutex> lock(_mutex);
-                    _stats.stat_seq++;
-                    _stats.n_datagrams = n_datagrams;
-                    _stats.n_datagram_bytes = _n_total_bytes_produced - (n_datagrams * PREFIX_LEN);
-                    _stats.n_datagrams_discarded = _n_total_datagrams_discarded;
-                    _stats.min_datagram_size = _min_produced_datagram_size;
-                    _stats.max_datagram_size = _max_produced_datagram_size;
-                    _stats.first_datagram_size = _first_produced_datagram_size;
-                    _stats.max_clump_size = std::max(_stats.max_clump_size, n_datagrams - old_n_datagrams);
-                    _stats.max_backlog_bytes = std::max(_stats.max_backlog_bytes, _n);
-                    _stats.start_time = start_time;
-                    _stats.end_time = end_time;
+                    if (!_exception) {
+                        _exception = std::current_exception();
+                    }
                 }
             }
+            _source->force_eof();
+        });
 
-            // TODO: Update final stats.
+        try {
+            _source_thread = std::thread([&] {
+                try {
+                    _source->copy_to_buffer_queue(_buffer_queue, _stats.source_stats);
+                } catch (...) {
+                    {
+                        std::lock_guard<std::mutex> lock(_mutex);
+                        if (!_exception) {
+                            _exception = std::current_exception();
+                        }
+                    }
+                }
+                _buffer_queue.producer_set_eof();
+            });
+        } catch (...) {
+            _buffer_queue.producer_set_eof();
+            throw;
         }
+    }
+
+    void wait() {
+        if (_source_thread.joinable()) {
+            _source_thread.join();
+        }
+        if (_destination_thread.joinable()) {
+            _destination_thread.join();
+        }
+        if (_exception) {
+            std::rethrow_exception(_exception);
+        }
+    }
+
+    /**
+     * @brief Force an EOF condition on the source as soon as possible. This method will be called
+     *        when an asynchronous signal is received to terminate the program cleanly.
+     */
+    void force_eof() {
+        _source->force_eof();
+    }
+
+    void close() {
+        force_eof();
+        wait();
     }
 };
 
