@@ -5,6 +5,9 @@
 #include <cstddef>
 #include <cstdint>
 #include <string>
+#include <system_error>
+
+#include <unistd.h>
 
 class DgCatConfig {
 public:
@@ -16,6 +19,8 @@ public:
     double max_datagram_rate;      // For UDP sender, max rate in datagrams/second. if <= 0.0, no limit.
     uint64_t max_datagrams;        // maximum number of datagrams to write. 0 means no limit.
     size_t max_write_size;         // Maximum number of bytes to write in one system call
+    size_t max_iovecs;             // Maximum number of iovecs that can be used in a single recvmmsg() call.
+                                   //   Will be limited to sysconf(_SC_IOV_MAX). 0 means use max possible.
     bool append;                   // For file output, true if existing file should be appended.
 
     /**
@@ -29,6 +34,8 @@ public:
      * @param max_datagram_rate   For UDP sender, max rate in datagrams/second. if <= 0.0, no limit.
      * @param max_datagrams       maximum number of datagrams to write. 0 means no limit.
      * @param max_write_size      Maximum number of bytes to write in one system call
+     * @param max_iovecs          Maximum number of iovecs that can be used in a single recvmmsg() call.
+     *                                Will be limited to sysconf(_SC_IOV_MAX). 0 means use max possible.
      * @param append              For file output, true if existing file should be appended.
      */
     DgCatConfig(
@@ -40,6 +47,7 @@ public:
             double max_datagram_rate = DEFAULT_MAX_DATAGRAM_RATE,
             uint64_t max_datagrams = DEFAULT_MAX_DATAGRAMS,
             size_t max_write_size = DEFAULT_MAX_WRITE_SIZE,
+            size_t max_iovecs = DEFAULT_MAX_IOVECS,
             bool append = false
         ) :
             bufsize(bufsize),
@@ -52,6 +60,14 @@ public:
             max_write_size(max_write_size),
             append(append)
     {
+        auto sys_max_iovecs = (size_t)sysconf(_SC_IOV_MAX);
+        if (sys_max_iovecs < 0) {
+            throw std::system_error(errno, std::system_category(), "sysconf(_SC_IOV_MAX) failed");
+        }
+        if (max_iovecs == 0 || max_iovecs > sys_max_iovecs) {
+            max_iovecs = sys_max_iovecs;
+        }
+        this->max_iovecs = max_iovecs;
     }
 
     DgCatConfig(const DgCatConfig&) = default;
@@ -60,7 +76,7 @@ public:
     DgCatConfig& operator=(DgCatConfig&&) = default;
 
     std::string to_string() const {
-        return "DgCatConfig{"
+        return "DgCatConfig{ "
             "bufsize=" + std::to_string(bufsize) + ", "
             "max_backlog=" + std::to_string(max_backlog) + ", "
             "polling_interval=" + std::to_string(polling_interval) + ", "
@@ -69,6 +85,7 @@ public:
             "max_datagram_rate=" + std::to_string(max_datagram_rate) + ", "
             "max_datagrams=" + std::to_string(max_datagrams) + ", "
             "max_write_size=" + std::to_string(max_write_size) + ", "
-            "append=" + (append ? "true" : "false") + "}";
+            "max_iovecs=" + std::to_string(max_iovecs) + ", "
+            "append=" + (append ? "true" : "false") + " }";
     }
 };

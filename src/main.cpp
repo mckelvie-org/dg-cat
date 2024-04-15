@@ -117,6 +117,15 @@ int main(int argc, char* argv[]) {
          // + " Default is " + std::to_string(DEFAULT_MAX_WRITE_SIZE) + "."
         );
 
+    parser.add_argument("--max-iovecs")
+        .default_value(DEFAULT_MAX_IOVECS)
+        .help(std::string(
+            "For UDP inputs, the maximum number of datagrams that can be received in a single\n"
+            "recvmmsg() call. Regardless of value, will be limited to sysconf(_SC_IOV_MAX).\n"
+            "0 means use the maximum possible.")
+         // + " Default is " + std::to_string(DEFAULT_MAX_IOVECS) + "."
+        );
+
     parser.add_argument("-a", "--append")
         .flag()
         .help(std::string(
@@ -182,6 +191,7 @@ int main(int argc, char* argv[]) {
     auto max_datagram_rate = parser.get<double>("max-datagram-rate");
     auto max_datagrams = parser.get<uint64_t>("max-datagrams");
     auto max_write_size = parser.get<size_t>("max-write-size");
+    auto max_iovecs = parser.get<size_t>("max-iovecs");
     auto append = parser.get<bool>("append");
     auto src = parser.get<std::string>("src");
     auto dst = parser.get<std::string>("dst");
@@ -195,6 +205,7 @@ int main(int argc, char* argv[]) {
         max_datagram_rate,
         max_datagrams,
         max_write_size,
+        max_iovecs,
         append
     );
 

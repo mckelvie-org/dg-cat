@@ -5,7 +5,7 @@
 #include "util.hpp"
 #include "buffer_queue.hpp"
 #include "no_block_file_writer.hpp"
-#include "datagram_copier_stats.hpp"
+#include "stats.hpp"
 #include "file_closer.hpp"
 
 class DatagramCopier : public NoBlockFileWriter {
@@ -16,7 +16,7 @@ private:
     double _first_datagram_timeout_secs;
     size_t _n_max_iovecs;
 
-    DatagramCopierStats _stats;
+    DgCatStats _stats;
     uint64_t _stat_version;
     bool _copying;
 
@@ -54,7 +54,7 @@ public:
         std::cerr << "DataGramCopier: max iovecs per recvmmsg=" << _n_max_iovecs << "\n";
     }
 
-    DatagramCopierStats get_stats(void) {
+    DgCatStats get_stats(void) {
         std::lock_guard<std::mutex> lock(_mutex);
         return _stats;
     }

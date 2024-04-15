@@ -15,3 +15,5 @@ static const double DEFAULT_EOF_TIMEOUT_SECS = 60.0;                  // timeout
 static const double DEFAULT_START_TIMEOUT_SECS = 0.0;                 // Timeout waiting for the first datagram on UDP. < 0 means use eof_timeout == 0 means no timeout.
 static const double DEFAULT_MAX_DATAGRAM_RATE = 0.0;                  // For UDP sender, max rate in datagrams/second. if <= 0.0, no limit.
 static const uint64_t DEFAULT_MAX_DATAGRAMS = 0;                      // Max datagrams to copy.  0 == no limit
+static const size_t DEFAULT_MAX_IOVECS = 0;                           // Maximum number of iovecs that can be used in a single recvmmsg() call.
+                                                                      //   Will be limited to sysconf(_SC_IOV_MAX). 0 means use max possible.
