@@ -229,6 +229,7 @@ public:
                 need_notify = true;
                 put_data_locked_no_notify((const char *)&len_network_byte_order, PREFIX_LEN);
                 put_data_locked_no_notify(dg_data, dg_len);
+                _stats.max_backlog_bytes = std::max(_stats.max_backlog_bytes, _n);
                 _stats.max_datagram_size = std::max(_stats.max_datagram_size, dg_len);
                 _stats.min_datagram_size = (_stats.n_datagrams == 0) ? dg_len : std::min(_stats.min_datagram_size, dg_len);
                 if (_stats.n_datagrams == 0) {
