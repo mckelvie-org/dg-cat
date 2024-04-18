@@ -128,6 +128,7 @@ public:
                 n_min = nb_datagram + PREFIX_LEN;
                 continue;
             }
+            batch.limit_size(nb_datagram);
 
             msg.msg_iov = batch.iov;
             msg.msg_iovlen = batch.n_iov;

@@ -2,7 +2,7 @@
   "cmake.buildDirectory": 
     "${workspaceFolder}/build/${buildKitTargetOs}-${buildKitVendor}-${buildKitTargetArch}-${buildType}",
   "cmake.debugConfig": {
-    "args": [ "-r", "1", "output.bin", "output2.bin" ],
+    "args": [ "-r", "1", "output.bin", "udp://localhost:9876" ],
     "cwd": "${workspaceFolder}"
   },
   "C_Cpp_Runner.cCompilerPath": "gcc",

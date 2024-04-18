@@ -75,6 +75,24 @@ public:
         ConsumerBatch(const ConsumerBatch&) = default;
         ConsumerBatch& operator=(const ConsumerBatch&) = default;
 
+        void limit_size(size_t nb) {
+            if (n > nb) {
+                if (iov[0].iov_len > nb) {
+                    iov[0].iov_len = nb;
+                    iov[1].iov_len = 0;
+                    iov[1].iov_base = nullptr;
+                    n_iov = (nb == 0) ? 0 : 1;
+                } else {
+                    iov[1].iov_len = nb - iov[0].iov_len;
+                    if (iov[1].iov_len == 0) {
+                        iov[1].iov_base = nullptr;
+                        n_iov = 1;
+                    } 
+                }
+                n = nb;
+            }
+        }
+
         void copy_and_remove_bytes(void *buffer, size_t nb) {
             if (nb > 0) {
                 if (nb > n) {
