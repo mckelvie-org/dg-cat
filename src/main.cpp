@@ -117,6 +117,14 @@ int main(int argc, char* argv[]) {
          // + " Default is " + std::to_string(DEFAULT_MAX_DATAGRAMS) + "."
         );
 
+    parser.add_argument("-R", "--max-read-size")
+        .default_value(DEFAULT_MAX_READ_SIZE)
+        .scan<'u', size_t>()
+        .help(std::string(
+            "For file inputs, the maximum number of bytes to read in a single system call.\n ")
+         // + " Default is " + std::to_string(DEFAULT_MAX_READ_SIZE) + "."
+        );
+
     parser.add_argument("-w", "--max-write-size")
         .default_value(DEFAULT_MAX_WRITE_SIZE)
         .scan<'u', size_t>()
@@ -199,6 +207,7 @@ int main(int argc, char* argv[]) {
     }
     auto max_datagram_rate = parser.get<double>("max-datagram-rate");
     auto max_datagrams = parser.get<uint64_t>("max-datagrams");
+    auto max_read_size = parser.get<size_t>("max-read-size");
     auto max_write_size = parser.get<size_t>("max-write-size");
     auto max_iovecs = parser.get<size_t>("max-iovecs");
     auto append = parser.get<bool>("append");
@@ -213,6 +222,7 @@ int main(int argc, char* argv[]) {
         start_timeout,
         max_datagram_rate,
         max_datagrams,
+        max_read_size,
         max_write_size,
         max_iovecs,
         append

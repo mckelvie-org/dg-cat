@@ -52,3 +52,4 @@ CTestTestfile.cmake
 _deps
 /CPM_modules/
 /output.bin
+/output2.bin

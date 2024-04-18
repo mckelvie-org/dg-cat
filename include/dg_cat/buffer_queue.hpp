@@ -74,6 +74,38 @@ public:
 
         ConsumerBatch(const ConsumerBatch&) = default;
         ConsumerBatch& operator=(const ConsumerBatch&) = default;
+
+        void copy_and_remove_bytes(void *buffer, size_t nb) {
+            if (nb > 0) {
+                if (nb > n) {
+                    throw std::runtime_error("Consumer tried to copy and remove too many bytes: " + std::to_string(nb) + " bytes, " + std::to_string(n) + " bytes available");
+                }
+                char *buff = (char *)buffer;
+                size_t n1 = std::min(nb, iov[0].iov_len);
+                memcpy(buff, iov[0].iov_base, n1);
+                iov[0].iov_base = (char *)(iov[0].iov_base) + n1;
+                iov[0].iov_len -= n1;
+                n -= n1;
+                if (nb > n1) {
+                    buff += n1;
+                    memcpy(buff, iov[1].iov_base, nb);
+                    iov[1].iov_base = (char *)(iov[1].iov_base) + nb;
+                    iov[1].iov_len -= nb;
+                    n -= nb;
+                }
+                if (iov[0].iov_len == 0) {
+                    iov[0] = iov[1];
+                    iov[1].iov_base = nullptr;
+                    iov[1].iov_len = 0;
+                    if (iov[0].iov_len == 0) {
+                        iov[0].iov_base = nullptr;
+                        n_iov = 0;
+                    } else {
+                        n_iov = 1;
+                    }
+                }
+            }
+        }
     };
 
     BufferQueue(
@@ -389,6 +421,25 @@ public:
             );
         }
         return get_data_locked(n_max);
+    }
+
+    void consumer_copy_bytes(void *buffer, size_t n) {
+       char *buff = (char *)buffer;
+       if (n > 0) {
+            std::lock_guard<std::mutex> lock(_mutex);
+            if (n > _n) {
+                throw std::runtime_error("Consumer tried to copy too many bytes: " + std::to_string(n) + " bytes, " + std::to_string(_n) + " bytes available");
+            }
+            const char *b = &_data[_consumer_index];
+            size_t n1 = std::min(_n, _max_n - _consumer_index);
+            memcpy(buff, b, std::min(n1, n));
+            if (n > n1) {
+                n -= n1;
+                buff += n1;
+                b = &_data[0];
+                memcpy(buff, b, n);
+            }
+        }
     }
 
     /**

@@ -2,7 +2,8 @@
   "cmake.buildDirectory": 
     "${workspaceFolder}/build/${buildKitTargetOs}-${buildKitVendor}-${buildKitTargetArch}-${buildType}",
   "cmake.debugConfig": {
-    "args": [ "-t", "10", "udp://9876", "file://output.bin"],
+    "args": [ "-r", "1", "output.bin", "output2.bin" ],
+    "cwd": "${workspaceFolder}"
   },
   "C_Cpp_Runner.cCompilerPath": "gcc",
   "C_Cpp_Runner.cppCompilerPath": "g++",
@@ -146,6 +147,7 @@
     "unordered_set": "cpp",
     "slist": "cpp",
     "shared_mutex": "cpp",
-    "valarray": "cpp"
+    "valarray": "cpp",
+    "*.ipp": "cpp"
   }
 }
