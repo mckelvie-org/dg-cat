@@ -49,7 +49,7 @@ target_sources(
 )
 target_compile_features(dg_cat PRIVATE cxx_std_11)
 
-add_executable(dg_cat_exe src/main.cpp)
+add_executable(dg_cat_exe src/main.cpp src/stacktrace.cpp)
 set_property(TARGET dg_cat_exe PROPERTY OUTPUT_NAME dg-cat)
 target_link_libraries(dg_cat_exe PUBLIC ${Boost_LIBRARIES} argparse::argparse dg_cat )
 

@@ -6,10 +6,14 @@
 #include <algorithm>
 #include <cctype>
 #include <string>
+#include <stdexcept>
+#include <exception>
 #include <boost/log/trivial.hpp>
 #include <boost/log/utility/setup/console.hpp>
 #include <boost/log/expressions.hpp>
 #include <boost/algorithm/string.hpp>
+
+#include "stacktrace.hpp"
 
 namespace logging = boost::log;
 
@@ -42,6 +46,16 @@ void init_logging(const std::string& log_level) {
     */
 
     // logging::add_common_attributes();
+}
+
+static std::terminate_handler old_terminate_handler = nullptr;
+
+static void on_unhandled_exception() {
+    print_stacktrace();
+    if (old_terminate_handler) {
+        old_terminate_handler();
+    }
+    std::abort();
 }
 
 int main(int argc, char* argv[]) {
@@ -158,6 +172,13 @@ int main(int argc, char* argv[]) {
            // + " Default is 'warning'."
         );
 
+    parser.add_argument("--tb")
+        .flag()
+        .help(std::string(
+            "On exception, display full stack traceback.")
+        );
+
+
     parser.add_argument("src")
         .default_value(std::string("stdin"))
         .help("The source of datagrams. Can be one of: \n"
@@ -165,7 +186,7 @@ int main(int argc, char* argv[]) {
                 "    \"file://<filename>\"\n"
                 "    \"udp://<local-port\"\n"
                 "    \"udp://<local-bind-addr>:<local-port>\"\n"
-                "    \"random://[n=<num-datagrams>][:min=<min-bytes>][:max=<max-bytes>][:seed=<seed>]\"\n"
+                "    \"random://[?][n=<num-datagrams>][&min=<min-bytes>][&max=<max-bytes>][&seed=<seed>]\"\n"
                 "    \"stdin\"\n"
                 "    \"-\"        (alias for stdin)\n"
                 "If omitted, \"stdin\" is used.");
@@ -194,6 +215,10 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
+    auto tb = parser.get<bool>("tb");
+    if (tb) {
+        old_terminate_handler = std::set_terminate(on_unhandled_exception);
+    }
     auto log_level_s = parser.get<std::string>("log-level");
     init_logging(log_level_s);
 

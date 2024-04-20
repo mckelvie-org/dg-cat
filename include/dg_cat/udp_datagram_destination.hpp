@@ -140,7 +140,11 @@ public:
             }
             ssize_t ret = sendmsg(_sock, &msg, 0);
             if (ret < 0) {
-                throw std::system_error(errno, std::system_category(), "sendmsg() failed");
+                if (errno == ECONNREFUSED) {
+                    BOOST_LOG_TRIVIAL(debug) << "sendmsg() got ECONNREFUSED; discarding\n";
+                } else {
+                    throw std::system_error(errno, std::system_category(), "sendmsg() failed");
+                }
             }
             buffer_queue.consumer_commit_batch(batch.n + PREFIX_LEN);
             if (send_interval_secs != 0.0) {
