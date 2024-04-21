@@ -134,8 +134,8 @@ public:
      */
     void copy_to_buffer_queue(BufferQueue& buffer_queue, LockableDgSourceStats& stats) override {
         {
-            struct mmsghdr _msg;
-            struct iovec _iov;
+            struct mmsghdr _msg{0};
+            struct iovec _iov{0};
             uint64_t n_datagrams = 0;
             struct timespec end_time;
             struct timespec start_time;

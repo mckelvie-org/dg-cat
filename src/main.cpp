@@ -255,6 +255,7 @@ int main(int argc, char* argv[]) {
 
     BOOST_LOG_TRIVIAL(debug) <<
         "Starting dg-cat with " << config.to_string() << "\n";
+    BOOST_LOG_TRIVIAL(info) << "PID: " << getpid() << "\n";
     
     DatagramCopier copier(config, src, dst);
 

@@ -23,6 +23,7 @@ public:
     size_t max_iovecs;             // Maximum number of iovecs that can be used in a single recvmmsg() call.
                                    //   Will be limited to sysconf(_SC_IOV_MAX). 0 means use max possible.
     bool append;                   // For file output, true if existing file should be appended.
+    bool handle_signals;           // If true, SIGINT will cleanly stop, and SIGUSR1 will dump stats.
 
     /**
      * @brief Construct a new DgCatConfig object
@@ -39,6 +40,7 @@ public:
      * @param max_iovecs          Maximum number of iovecs that can be used in a single recvmmsg() call.
      *                                Will be limited to sysconf(_SC_IOV_MAX). 0 means use max possible.
      * @param append              For file output, true if existing file should be appended.
+     * @param handle_signals      If true, SIGINT will cleanly stop, and SIGUSR1 will dump stats.
      */
     DgCatConfig(
             size_t bufsize = DEFAULT_MAX_DATAGRAM_SIZE,
@@ -51,7 +53,8 @@ public:
             size_t max_read_size = DEFAULT_MAX_READ_SIZE,
             size_t max_write_size = DEFAULT_MAX_WRITE_SIZE,
             size_t max_iovecs = DEFAULT_MAX_IOVECS,
-            bool append = false
+            bool append = false,
+            bool handle_signals = true
         ) :
             bufsize(bufsize),
             max_backlog(max_backlog),
@@ -62,7 +65,8 @@ public:
             max_datagrams(max_datagrams),
             max_read_size(max_read_size),
             max_write_size(max_write_size),
-            append(append)
+            append(append),
+            handle_signals(handle_signals)
     {
         auto sys_max_iovecs = (size_t)sysconf(_SC_IOV_MAX);
         if (sys_max_iovecs < 0) {
@@ -91,6 +95,8 @@ public:
             "max_read_size=" + std::to_string(max_read_size) + ", "
             "max_write_size=" + std::to_string(max_write_size) + ", "
             "max_iovecs=" + std::to_string(max_iovecs) + ", "
-            "append=" + (append ? "true" : "false") + " }";
+            "append=" + (append ? "true" : "false") + ", "
+            "handle_signals=" + (handle_signals ? "true" : "false")
+            + " }";
     }
 };

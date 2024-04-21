@@ -4,6 +4,9 @@
 #include <thread>
 #include <atomic>
 #include <mutex>
+#include <boost/log/trivial.hpp>
+
+#include <signal.h>
 
 #include "config.hpp"
 #include "buffer_queue.hpp"
@@ -17,14 +20,17 @@
 class DatagramCopier {
 private:
     std::mutex _mutex;
+    std::condition_variable _cond;
     const DgCatConfig& _config;
     LockableDgCatStats _stats;
     BufferQueue _buffer_queue;
     std::unique_ptr<DatagramSource> _source;
     std::unique_ptr<DatagramDestination> _destination;
     std::atomic<uint64_t> _stat_seq;
-     std::thread _source_thread;
+    std::thread _source_thread;
     std::thread _destination_thread;
+    std::thread _signal_thread;
+    bool _signal_thread_waiting = false;
 
     /**
      * @brief An exception that was raised in a worker thread. This will be rethrown in the main thread when
@@ -95,8 +101,17 @@ public:
      * @param stats        The threadsafe stats object to update with real-time progress.
      */
     void start() {
+        if (_config.handle_signals) {
+            mask_signals();
+            _signal_thread = std::thread([&] {
+                handle_signals();
+            });
+        }
         _destination_thread = std::thread([&] {
             try {
+                if (_config.handle_signals) {
+                    mask_signals();
+                }
                 _destination->copy_from_buffer_queue(_buffer_queue, _stats.destination_stats);
             } catch (...) {
                 {
@@ -112,6 +127,9 @@ public:
         try {
             _source_thread = std::thread([&] {
                 try {
+                    if (_config.handle_signals) {
+                        mask_signals();
+                    }
                     _source->copy_to_buffer_queue(_buffer_queue, _stats.source_stats);
                 } catch (...) {
                     {
@@ -127,6 +145,7 @@ public:
             _buffer_queue.producer_set_eof();
             throw;
         }
+
     }
 
     void wait() {
@@ -135,6 +154,23 @@ public:
         }
         if (_destination_thread.joinable()) {
             _destination_thread.join();
+        }
+        if (_signal_thread.joinable()) {
+            auto retry_timer = std::chrono::seconds(1);
+            while (true) {
+                ::pthread_kill(_signal_thread.native_handle(), SIGUSR1);
+                {
+                    std::unique_lock<std::mutex> lock(_mutex);
+                    if (!_signal_thread_waiting) {
+                        break;
+                    }
+                    _cond.wait_for(lock, retry_timer);
+                    if (!_signal_thread_waiting) {
+                        break;
+                    }
+                }
+            }
+            _signal_thread.join();
         }
         if (_exception) {
             std::rethrow_exception(_exception);
@@ -152,6 +188,73 @@ public:
     void close() {
         force_eof();
         wait();
+    }
+
+protected:
+    void mask_signals() {
+        sigset_t sigset;
+        sigemptyset(&sigset);
+        sigaddset(&sigset, SIGINT);
+        sigaddset(&sigset, SIGUSR1);
+        pthread_sigmask(SIG_BLOCK, &sigset, nullptr);
+    }
+
+    void handle_signals() {
+        BOOST_LOG_TRIVIAL(debug) << "Signal thread started";
+
+        sigset_t sigset;
+        sigemptyset(&sigset);
+        sigaddset(&sigset, SIGINT);
+        sigaddset(&sigset, SIGUSR1);
+        int n_sigint = 0;
+
+        {
+            std::lock_guard<std::mutex> lock(_mutex);
+            _signal_thread_waiting = true;
+        }
+
+        while (true) {
+            int sig = 0;
+            if (_buffer_queue.is_eof()) {
+                BOOST_LOG_TRIVIAL(debug) << "EOF detected; exiting signal thread";
+                break;
+            }
+            BOOST_LOG_TRIVIAL(debug) << "Waiting for signal...";
+            int ret = sigwait(&sigset, &sig);
+            if (ret != 0) {
+                std::cerr << "sigwait() failed: " << strerror(errno) << std::endl;
+                abort();
+            }
+            BOOST_LOG_TRIVIAL(debug) << "Received signal: " << sig << std::endl;
+            if (_buffer_queue.is_eof()) {
+                BOOST_LOG_TRIVIAL(debug) << "EOF detected; exiting signal thread";
+                break;
+            }
+            switch (sig) {
+                case SIGINT:
+                    ++n_sigint;
+                    if (n_sigint >= 2) {
+                        std::cerr << "Received SIGINT twice; aborting" << std::endl;
+                        exit(1);
+                    }
+                    BOOST_LOG_TRIVIAL(info) << "Forcing EOF due to SIGINT\n";
+                    force_eof();
+                    BOOST_LOG_TRIVIAL(debug) << "Done forcing EOF\n";
+                    break;
+                case SIGUSR1:
+                    BOOST_LOG_TRIVIAL(debug) << "Dumping stats due to SIGUSR1\n";
+                    std::cerr << get_stats().brief_str() << std::endl;
+                    BOOST_LOG_TRIVIAL(debug) << "Done dumping stats\n";
+                    break;
+            }
+        }
+
+        {
+            std::lock_guard<std::mutex> lock(_mutex);
+            _signal_thread_waiting = false;
+        }
+        _cond.notify_all();
+        BOOST_LOG_TRIVIAL(debug) << "Signal thread shutting down";
     }
 };
 
