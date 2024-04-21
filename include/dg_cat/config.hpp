@@ -13,7 +13,6 @@ class DgCatConfig {
 public:
     size_t bufsize;                // Max datagram size(not including length prefix);
     size_t max_backlog;            // Max number of unwritten bytes to buffer, including length prefixes.
-    double polling_interval;       // Datagram polling interval
     double eof_timeout;            // timeout waiting for datagrams on UDP before an EOF is inferred. <= 0 means no timeout.
     double start_timeout;          // Timeout waiting for the first datagram on UDP. <= 0 means no timeout.
     double max_datagram_rate;      // For UDP sender, max rate in datagrams/second. if <= 0.0, no limit.
@@ -30,7 +29,6 @@ public:
      * 
      * @param bufsize             Max datagram size(not including length prefix);
      * @param max_backlog         Max number of unwritten bytes to buffer, including length prefixes.
-     * @param polling_interval    Datagram polling interval
      * @param eof_timeout         timeout waiting for datagrams on UDP before an EOF is inferred. <= 0 means no timeout.
      * @param start_timeout       Timeout waiting for the first datagram on UDP. < 0 means use eof_timeout. == 0 means no timeout.
      * @param max_datagram_rate   For UDP sender, max rate in datagrams/second. if <= 0.0, no limit.
@@ -45,7 +43,6 @@ public:
     DgCatConfig(
             size_t bufsize = DEFAULT_MAX_DATAGRAM_SIZE,
             size_t max_backlog = DEFAULT_MAX_BACKLOG,
-            double polling_interval = DEFAULT_POLLING_INTERVAL,
             double eof_timeout = DEFAULT_EOF_TIMEOUT_SECS,
             double start_timeout = DEFAULT_START_TIMEOUT_SECS,
             double max_datagram_rate = DEFAULT_MAX_DATAGRAM_RATE,
@@ -58,7 +55,6 @@ public:
         ) :
             bufsize(bufsize),
             max_backlog(max_backlog),
-            polling_interval(polling_interval),
             eof_timeout(eof_timeout),
             start_timeout((start_timeout < 0.0) ? eof_timeout: start_timeout),
             max_datagram_rate(max_datagram_rate),
@@ -87,7 +83,6 @@ public:
         return "DgCatConfig{ "
             "bufsize=" + std::to_string(bufsize) + ", "
             "max_backlog=" + std::to_string(max_backlog) + ", "
-            "polling_interval=" + std::to_string(polling_interval) + ", "
             "eof_timeout=" + std::to_string(eof_timeout) + ", "
             "start_timeout=" + std::to_string(start_timeout) + ", "
             "max_datagram_rate=" + std::to_string(max_datagram_rate) + ", "

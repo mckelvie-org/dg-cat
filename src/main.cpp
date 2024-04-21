@@ -86,15 +86,6 @@ int main(int argc, char* argv[]) {
          // + "Default is " + std::to_string(DEFAULT_MAX_BACKLOG) + "."
         );
 
-    parser.add_argument("-p", "--polling-interval")
-        .default_value(DEFAULT_POLLING_INTERVAL)
-        .scan<'g', double>()
-        .help(std::string(
-            "For UDP sources, the low-level timeout on recv(), in seconds. This is the maximum latency\n"
-            "between a shutdown condition and shutting down.")
-         // + " Default is " + std::to_string(DEFAULT_POLLING_INTERVAL) + " seconds."
-        );
-
     parser.add_argument("-t", "--eof-timeout")
         .default_value(DEFAULT_EOF_TIMEOUT_SECS)
         .scan<'g', double>()
@@ -163,9 +154,19 @@ int main(int argc, char* argv[]) {
             "For file outputs, append to the file instead of truncating it.")
         );
 
+    parser.add_argument("--no-handle-signals")
+        .flag()
+        .help(std::string(
+            "Do not intercept SIGINT and SIGUSR1.  By default, SIGINT will cleanly drain\n"
+            "buffered datagrams before shutting down, and SIGUSR1 will cause a brief summary\n"
+            "of progress statistics to be printed to stderr.")
+        );
+
+    // NOTE: argparse in this version seems to have a bug in choices() such that all remaining
+    // arguments are treated as choices.  So we will check the value ourselves.
     parser.add_argument("-l", "--log-level")
         .default_value(std::string("warning"))
-        .choices("DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL", "debug", "info", "warning", "error", "critical")
+        //.choices("DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL", "debug", "info", "warning", "error", "critical")
         .help(std::string(
               "Set the logging level. Choices are ('debug', 'info', 'warning', 'error',\n"
               "or 'critical').")
@@ -224,7 +225,6 @@ int main(int argc, char* argv[]) {
 
     auto bufsize = parser.get<size_t>("max-datagram-size");
     auto max_backlog = parser.get<size_t>("max-backlog");
-    auto polling_interval = parser.get<double>("polling-interval");
     auto eof_timeout = parser.get<double>("eof-timeout");
     auto start_timeout = parser.get<double>("start-timeout");
     if (start_timeout < 0.0) {
@@ -236,13 +236,13 @@ int main(int argc, char* argv[]) {
     auto max_write_size = parser.get<size_t>("max-write-size");
     auto max_iovecs = parser.get<size_t>("max-iovecs");
     auto append = parser.get<bool>("append");
+    auto no_handle_signals = parser.get<bool>("no-handle-signals");
     auto src = parser.get<std::string>("src");
     auto dst = parser.get<std::string>("dst");
 
     DgCatConfig config(
         bufsize,
         max_backlog,
-        polling_interval,
         eof_timeout,
         start_timeout,
         max_datagram_rate,
@@ -250,13 +250,14 @@ int main(int argc, char* argv[]) {
         max_read_size,
         max_write_size,
         max_iovecs,
-        append
+        append,
+        !no_handle_signals
     );
 
     BOOST_LOG_TRIVIAL(debug) <<
         "Starting dg-cat with " << config.to_string() << "\n";
     BOOST_LOG_TRIVIAL(info) << "PID: " << getpid() << "\n";
-    
+
     DatagramCopier copier(config, src, dst);
 
     copier.start();
