@@ -1,5 +1,13 @@
 *.yml
 .travis/
 README.md
-.git
-.gitignore
+/.git
+/.gitignore
+/.build/
+/output.bin
+/output2.bin
+/.vscode/
+/.github/
+/Dockerfile
+/.dockerignore
+

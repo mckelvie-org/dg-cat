@@ -49,10 +49,16 @@ public:
     {
         _filename = _path;
 
-        if (_filename.compare(0, 7, "file://") == 0) {
-            _filename.erase(0, 7);
+        if (_filename == "-" || _filename == "stdin") {
+            _filename = "stdin";
+            // duplicate the file descriptor for stdin so it can be closed without affecting the original
+            _fd = dup(STDIN_FILENO);
+        } else {
+            if (_filename.compare(0, 7, "file://") == 0) {
+                _filename.erase(0, 7);
+            }
+            _fd = ::open(_filename.c_str(), O_RDONLY);
         }
-        _fd = ::open(_filename.c_str(), O_RDONLY);
         if (_fd == -1) {
             throw std::runtime_error("Failed to open file: " + path + ": " + strerror(errno));
         }
