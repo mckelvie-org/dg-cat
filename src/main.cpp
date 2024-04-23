@@ -9,7 +9,12 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <argparse/argparse.hpp>
-#include <algorithm>
+#include <algorithm>/**
+ * Copyright (c) 2024 Samuel J. McKelvie
+ *
+ * MIT License - See LICENSE file accompanying this package.
+ */
+
 #include <cctype>
 #include <string>
 #include <stdexcept>
@@ -65,7 +70,7 @@ static void on_unhandled_exception() {
 }
 
 int main(int argc, char* argv[]) {
-    argparse::ArgumentParser parser("dg-cat", "0.1");
+    argparse::ArgumentParser parser("dg-cat", DG_CAT_VERSION);
 
     parser.add_description(
         "Copy between datagram streams while preserving message lengths.\n\n"
