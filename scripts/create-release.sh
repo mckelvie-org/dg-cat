@@ -24,7 +24,7 @@ if ! git diff-index --cached --quiet HEAD --ignore-submodules --; then
     exit 1
 fi
 
-if [ git log origin/main..HEAD | wc -c -gt 0 ]; then
+if [ ( git log origin/main..HEAD | wc -c ) -gt 0 ]; then
     echo >&2 "Unpushed committed changes detected; please push all changes and try again"
     exit 1
 fi
