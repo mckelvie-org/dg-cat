@@ -27,9 +27,4 @@ else
     exit 1
 fi
 
-gh release create v$app_version
-
-for arch in amd64 arm64; do
-    gh release create v$app_version-linux-$arch-debug build/artifacts/dg-cat-$app_version-$arch-debug.tar.gz
-    gh release create v$app_version-linux-$arch build/artifacts/dg-cat-$app_version-$arch.tar.gz
-done
+gh release create v$app_version build/artifacts/*
