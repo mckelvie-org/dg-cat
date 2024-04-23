@@ -27,4 +27,4 @@ else
     exit 1
 fi
 
-gh release create v$app_version build/artifacts/*
+gh release create v$app_version -t v$app_version --generate-notes build/artifacts/*
