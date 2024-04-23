@@ -1,3 +1,8 @@
+/**
+ * Copyright (c) 2024 Samuel J. McKelvie
+ *
+ * MIT License - See LICENSE file accompanying this package.
+ */
 #include "dg_cat/datagram_source.hpp"
 #include "dg_cat/udp_datagram_source.hpp"
 #include "dg_cat/random_datagram_source.hpp"

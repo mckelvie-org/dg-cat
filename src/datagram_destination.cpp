@@ -1,3 +1,8 @@
+/**
+ * Copyright (c) 2024 Samuel J. McKelvie
+ *
+ * MIT License - See LICENSE file accompanying this package.
+ */
 #include "dg_cat/datagram_destination.hpp"
 #include "dg_cat/file_datagram_destination.hpp"
 #include "dg_cat/udp_datagram_destination.hpp"

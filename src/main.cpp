@@ -1,3 +1,9 @@
+/**
+ * Copyright (c) 2024 Samuel J. McKelvie
+ *
+ * MIT License - See LICENSE file accompanying this package.
+ */
+
 #include "dg_cat/dg_cat.hpp"
 
 #include <unistd.h>

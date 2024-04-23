@@ -1,3 +1,8 @@
+/**
+ * Copyright (c) 2024 Samuel J. McKelvie
+ *
+ * MIT License - See LICENSE file accompanying this package.
+ */
 #pragma once
 
 #include "constants.hpp"
