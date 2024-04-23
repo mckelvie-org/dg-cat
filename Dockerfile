@@ -58,7 +58,6 @@ RUN cd /build && \
     cd build/Release && \
     cmake ../.. -D CMAKE_BUILD_TYPE=Release && \
     make -j${NUM_JOBS} && \
-    make install && \
     echo "Built dg-cat Release version"
 
 RUN cd /build && \
@@ -71,19 +70,45 @@ RUN cd /build && \
     chown root:root /usr/local/bin/dg-cat-debug && \
     echo "Built dg-cat-debug Debug version"
 
+FROM dg-cat-build as dg-cat-install-release
+
+RUN cd /build/build/Release && \
+    make install && \
+    echo "Installed dg-cat Release version"
+
+FROM dg-cat-build as dg-cat-install-debug
+
+RUN cd /build/build/Debug && \
+    make install && \
+    echo "Installed dg-cat Debug version"
+
+FROM scratch as dg-cat-pkg-release
+
+COPY --from=dg-cat-install-release /usr/local/bin/dg-cat /dg-cat/bin/
+COPY --from=dg-cat-install-release /usr/local/lib/libdg_cat.a /dg-cat/lib/
+COPY --from=dg-cat-install-release /usr/local/include/dg_cat /dg-cat/include/dg_cat
+COPY --from=dg-cat-install-release /usr/local/lib/cmake/DgCat /dg-cat/lib/cmake/DgCat
+
+FROM scratch as dg-cat-pkg-debug
+
+COPY --from=dg-cat-install-debug /usr/local/bin/dg-cat /dg-cat/bin/
+COPY --from=dg-cat-install-debug /usr/local/lib/libdg_cat.a /dg-cat/lib/
+COPY --from=dg-cat-install-debug /usr/local/include/dg_cat /dg-cat/include/dg_cat
+COPY --from=dg-cat-install-debug /usr/local/lib/cmake/DgCat /dg-cat/lib/cmake/DgCat
+
 FROM ubuntu:22.04 as runtime-env
 
 RUN apt-get clean
 
 FROM runtime-env as dg-cat-debug
 
-COPY --from=dg-cat-build /usr/local/bin/dg-cat* /usr/local/bin/
+COPY --from=dg-cat-install-debug /usr/local/bin/dg-cat /usr/local/bin/
 
-ENTRYPOINT [ "/usr/local/bin/dg-cat-debug"]
+ENTRYPOINT [ "/usr/local/bin/dg-cat"]
 
 FROM runtime-env as dg-cat-release
 
-COPY --from=dg-cat-build /usr/local/bin/dg-cat /usr/local/bin/
+COPY --from=dg-cat-install-release /usr/local/bin/dg-cat /usr/local/bin/
 
 ENTRYPOINT [ "/usr/local/bin/dg-cat"]
 

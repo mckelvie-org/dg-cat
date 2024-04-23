@@ -40,12 +40,33 @@ if(Boost_FOUND)
   include_directories(${Boost_INCLUDE_DIRS})
 endif()
 
+set (PUBLIC_HEADERS
+  include/dg_cat/addrinfo.hpp
+  include/dg_cat/buffer_queue.hpp
+  include/dg_cat/config.hpp
+  include/dg_cat/constants.hpp
+  include/dg_cat/datagram_copier.hpp
+  include/dg_cat/datagram_destination.hpp
+  include/dg_cat/datagram_source.hpp
+  include/dg_cat/dg_cat.hpp
+  include/dg_cat/file_datagram_destination.hpp
+  include/dg_cat/file_datagram_source.hpp
+  include/dg_cat/object_closer.hpp
+  include/dg_cat/random_datagram_source.hpp
+  include/dg_cat/stats.hpp
+  include/dg_cat/timespec_math.hpp
+  include/dg_cat/udp_datagram_destination.hpp
+  include/dg_cat/udp_datagram_source.hpp
+  include/dg_cat/util.hpp
+  include/dg_cat/version.hpp
+)
+
 add_library(dg_cat src/datagram_source.cpp src/datagram_destination.cpp)
 target_sources(
   dg_cat PUBLIC
   FILE_SET HEADERS
   BASE_DIRS include
-  FILES include/dg_cat/dg_cat.hpp
+  FILES ${PUBLIC_HEADERS}
 )
 target_compile_features(dg_cat PRIVATE cxx_std_11)
 
