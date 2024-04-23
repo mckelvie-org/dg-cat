@@ -10,4 +10,5 @@ README.md
 /.github/
 /Dockerfile
 /.dockerignore
-
+/build/
+/scripts/
