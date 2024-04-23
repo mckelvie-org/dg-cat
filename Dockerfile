@@ -82,6 +82,11 @@ RUN cd /build/build/Debug && \
     make install && \
     echo "Installed dg-cat Debug version"
 
+FROM scratch as dg-cat-pkg-src
+
+COPY --from=dg-cat-install-release /usr/local/include/dg_cat /dg-cat/include/dg_cat
+COPY --from=dg-cat-install-release /usr/local/lib/cmake/DgCat /dg-cat/lib/cmake/DgCat
+
 FROM scratch as dg-cat-pkg-release
 
 COPY --from=dg-cat-install-release /usr/local/bin/dg-cat /dg-cat/bin/
